@@ -1,0 +1,6 @@
+<!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN" "http://www.springframework.org/dtd/spring-beans.dtd">
+<beans>
+	<bean id="manager" class="edu.mcw.rgd.HistoricLogs">
+        <property name="version" value="MiscTools  -- build Nov 12, 2019" />
+	</bean>
+</beans>

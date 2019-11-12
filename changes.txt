@@ -1,0 +1,8 @@
+Historic Logs tool:
+  go over all the pipelines:
+    go into every log or logs directory and copy 'archive' subdirectory
+    go into every data directory and copy 'archive' subdirectory
+  all of these archives should be stored in data dir
+
+
+  
