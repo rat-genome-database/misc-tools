@@ -9,6 +9,9 @@ import edu.mcw.rgd.process.mapping.MapManager;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 
 public class SynthenyFiles {
@@ -45,7 +48,17 @@ public class SynthenyFiles {
 
             Transcript t = getTranscript(g.getRgdId());
 
-            if( t==null ) {
+            MapData pos = null;
+            if( t!=null ) {
+                for( MapData md: t.getGenomicPositions() ) {
+                    if( md.getMapKey()==360 ) {
+                        pos = md;
+                        break;
+                    }
+                }
+            }
+
+            if( pos==null ) {
                 // output mRNA line: f.e.
                 // chr16	MGI	mRNA	31296192	31314808	.	-	.	ID=88056;Name=MGI_88056_Apod;Alias=Apod;Alias=MGI_88056;Dbxref=88056;Status=mRNA;Gene_Type=protein coding gene
                 out.write("chr" + mg.getChromosome());
@@ -67,8 +80,6 @@ public class SynthenyFiles {
                 out.write("\n");
             } else {
 
-                MapData pos = t.getGenomicPositions().get(0);
-
                 // output mRNA line: f.e.
                 //chr7	MGI	mRNA	28741934	28753879	.	+	.	ID=1919234;Name=MGI_1919234_Sars2;Alias=Sars2;Alias=MGI_1919234;Dbxref=1919234;Status=mRNA;Gene_Type=protein coding gene
                 //chr7	MGI	exon	28741934	28742282	.	+	.	Parent=1919234;Status=mRNA
@@ -85,7 +96,7 @@ public class SynthenyFiles {
                 out.write("\n");
 
                 // exons
-                List<TranscriptFeature> exons = tdao.getFeatures(t.getRgdId(), TranscriptFeature.FeatureType.EXON);
+                List<TranscriptFeature> exons = getExons(t.getRgdId());
                 for( TranscriptFeature exon: exons ) {
                     out.write("chr" + mg.getChromosome());
                     out.write("\tRGD\texon");
@@ -115,6 +126,29 @@ public class SynthenyFiles {
         }
         // return any transcript
         return tlist.get(0);
+    }
+
+    List<TranscriptFeature> getExons(int trRgdId) throws Exception {
+
+        List<TranscriptFeature> exons = tdao.getFeatures(trRgdId, TranscriptFeature.FeatureType.EXON);
+
+        // remove positions from assemblies other than 360
+        Iterator<TranscriptFeature> it = exons.iterator();
+        while( it.hasNext() ) {
+            TranscriptFeature tf = it.next();
+            if( tf.getMapKey()!=360 ) {
+                it.remove();
+            }
+        }
+
+        // sort by chr, start pos
+        Collections.sort(exons, new Comparator<TranscriptFeature>() {
+            @Override
+            public int compare(TranscriptFeature o1, TranscriptFeature o2) {
+                return o1.getStartPos() - o2.getStartPos();
+            }
+        });
+        return exons;
     }
 
     void generateRatHumanOrthologs() throws Exception {

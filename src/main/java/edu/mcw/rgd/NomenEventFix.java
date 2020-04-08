@@ -6,12 +6,11 @@ import edu.mcw.rgd.dao.impl.RGDManagementDAO;
 import edu.mcw.rgd.dao.spring.GeneQuery;
 import edu.mcw.rgd.dao.spring.IntListQuery;
 import edu.mcw.rgd.dao.spring.NomenclatureEventsQuery;
-import edu.mcw.rgd.datamodel.Gene;
-import edu.mcw.rgd.datamodel.NomenclatureEvent;
-import edu.mcw.rgd.datamodel.RgdId;
+import edu.mcw.rgd.datamodel.*;
 import edu.mcw.rgd.process.Utils;
 
 import java.util.*;
+import java.util.Map;
 
 public class NomenEventFix {
 
@@ -31,6 +30,7 @@ public class NomenEventFix {
 
         RGDManagementDAO rdao = new RGDManagementDAO();
         int speciesTypeKey = 3;
+        System.out.println("SPECIES: "+ SpeciesType.getCommonName(speciesTypeKey));
         String sql = "select * from genes g "+
         "where exists(select 1 from rgd_ids i where i.rgd_id=g.rgd_id and object_status='ACTIVE' and species_type_key=? and gene_type_lc not in('allele','splice')) "+
         "and not exists(select 1 from nomen_events e where e.rgd_id=g.rgd_id) and gene_source='NCBI'";
@@ -196,9 +196,13 @@ public class NomenEventFix {
     }
 
     public Integer generateNomenEventKey() throws Exception {
-        List<Integer> keys = generateNomenEventKeys(1);
-        return keys.get(0);
+        if( _keyCache.isEmpty() ) {
+            _keyCache.addAll(generateNomenEventKeys(12));
+        }
+        int key = _keyCache.remove(0);
+        return key;
     }
+    List<Integer> _keyCache = new ArrayList<>();
 
     public int hashCode(NomenclatureEvent e) {
         return e.getOriginalRGDId()
