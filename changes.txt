@@ -1,3 +1,7 @@
+Loader4Markers7_2:
+  1) generate fasta files with rat markers for assemblies rn6 and rn3_4
+  2) load markers data for assembly rn7.2
+
 Historic Logs tool:
   go over all the pipelines:
     go into every log or logs directory and copy 'archive' subdirectory

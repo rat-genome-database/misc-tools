@@ -12,7 +12,6 @@ import edu.mcw.rgd.process.Utils;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
-import java.io.IOException;
 import java.util.*;
 
 /** load positions for markers on 7.2 assembly
@@ -87,13 +86,9 @@ public class Loader4Markers7_2 {
 
     static void generateFastaForMarkers() throws Exception {
 
-        BufferedWriter out = new BufferedWriter(new FileWriter("rn6_markers.fa"));
-
         SSLPDAO sslpdao = new SSLPDAO();
-        MapDAO mapDAO = new MapDAO();
 
         int speciesTypeKey = SpeciesType.RAT;
-        int mapKey = 360;
 
         List<SSLP> sslps = sslpdao.getActiveSSLPs(speciesTypeKey);
         Collections.sort(sslps, new Comparator<SSLP>() {
@@ -103,7 +98,23 @@ public class Loader4Markers7_2 {
             }
         });
 
-        for( SSLP sslp: sslps ) {
+        generateFastaForMarkers(360, "rn6", sslps);
+        generateFastaForMarkers(60, "rn3_4", sslps);
+
+        System.out.println("DONE!");
+        System.exit(0);
+    }
+
+    static void generateFastaForMarkers(int mapKey, String assembly, List<SSLP> markers) throws Exception {
+
+        BufferedWriter out = new BufferedWriter(new FileWriter(assembly+"_markers.fa"));
+
+        MapDAO mapDAO = new MapDAO();
+
+        int s = 0;
+        for( SSLP sslp: markers ) {
+            s++;
+            System.out.println(s+"/"+markers.size()+". "+sslp.getName());
 
             List<MapData> mds = mapDAO.getMapData(sslp.getRgdId(), mapKey);
             int i = 1;
@@ -111,10 +122,11 @@ public class Loader4Markers7_2 {
                 String seq = getFastaSeq(mapKey, md.getChromosome(), md.getStartPos(), md.getStopPos());
 
                 // write fasta
-                out.write(">"+md.getRgdId()+"_"+i+"\n");
-                while( seq.length()>64 ) {
-                    out.write(seq.substring(0, 64)+"\n");
-                    seq = seq.substring(64);
+                out.write(">"+md.getRgdId()+"_"+i+" chr"+md.getChromosome()+":"+md.getStartPos()+".."+md.getStopPos()+"\n");
+
+                while( seq.length()>80 ) {
+                    out.write(seq.substring(0, 80)+"\n");
+                    seq = seq.substring(80);
                 }
                 if( seq.length()>0 ) {
                     out.write(seq+"\n");
