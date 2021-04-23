@@ -107,7 +107,8 @@ public class Loader4Markers7_2 {
 
     static void generateFastaForMarkers(int mapKey, String assembly, List<SSLP> markers) throws Exception {
 
-        BufferedWriter out = new BufferedWriter(new FileWriter(assembly+"_markers.fa"));
+        BufferedWriter out1 = new BufferedWriter(new FileWriter(assembly+"_markers.fa"));
+        BufferedWriter out2 = new BufferedWriter(new FileWriter(assembly+"_markers_short.fa"));
 
         MapDAO mapDAO = new MapDAO();
 
@@ -120,6 +121,8 @@ public class Loader4Markers7_2 {
             int i = 1;
             for( MapData md: mds ) {
                 String seq = getFastaSeq(mapKey, md.getChromosome(), md.getStartPos(), md.getStopPos());
+
+                BufferedWriter out = seq.length() < 20 ? out2 : out1;
 
                 // write fasta
                 out.write(">"+md.getRgdId()+"_"+i+" chr"+md.getChromosome()+":"+md.getStartPos()+".."+md.getStopPos()+"\n");
@@ -136,7 +139,8 @@ public class Loader4Markers7_2 {
             }
         }
 
-        out.close();
+        out1.close();
+        out2.close();
     }
 
     static String getFastaSeq(int mapKey, String chr, int startPos, int stopPos) throws Exception {
