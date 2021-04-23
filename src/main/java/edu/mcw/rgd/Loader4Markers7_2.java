@@ -120,6 +120,12 @@ public class Loader4Markers7_2 {
             List<MapData> mds = mapDAO.getMapData(sslp.getRgdId(), mapKey);
             int i = 1;
             for( MapData md: mds ) {
+
+                // skip loci longer than 10,000 bases
+                int seqLen = Math.abs(md.getStopPos() - md.getStartPos()) + 1;
+                if( seqLen >= 10000 ) {
+                    continue;
+                }
                 String seq = getFastaSeq(mapKey, md.getChromosome(), md.getStartPos(), md.getStopPos());
 
                 BufferedWriter out = seq.length() < 20 ? out2 : out1;
