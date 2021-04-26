@@ -30,7 +30,114 @@ public class Loader4Markers7_2 {
 
     public static void main(String[] args) throws Exception {
 
-        generateFastaForMarkers();
+        //generateFastaForMarkers();
+
+        loadPositions(args);
+    }
+
+    /** load positions for markers on 7.2 assembly
+     *  Apr 2021
+     *
+     *  file format: (sample few lines)
+     *       psLayout
+     *
+     *      ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+     * 10048_1 chr4 + 154902669 154902892 223
+     * 10048_2 chr4 + 154902669 154902892 223
+     *
+     * marker_rgd_id followed by locus nr, chr, strand, start_pos, stop_pos, length
+     */
+    public static void loadPositions(String[] args) throws Exception {
+
+        final int mapKey = 372; // rat 7.2 assembly
+        final String srcPipeline = "MAPPER";
+
+        MapDAO mapDAO = new MapDAO();
+
+        int positionsProcessed = 0;
+        int positionsInserted = 0;
+        int positionsDuplicated = 0;
+        int unmappedChromosomes = 0;
+
+        String fname = "rn7_markers.csv";
+        BufferedReader in = Utils.openReader(fname);
+        String line;
+        while( (line=in.readLine())!=null ) {
+            String[] cols = line.split("[ ]+");
+            // it must be exactly 6 columns
+            if( cols.length!=6 ) {
+                continue;
+            }
+            positionsProcessed++;
+
+            String markerRgdId = cols[0];
+            String chrStr = cols[1];
+            String strand = cols[2];
+            int startPos = Integer.parseInt(cols[3]);
+            int stopPos = Integer.parseInt(cols[4]);
+            int len = Integer.parseInt(cols[5]);
+
+            // strip 'chr' prefix
+            String chr = chrStr.substring(3);
+            if( chr.length()>2 ) {
+                unmappedChromosomes++;
+                continue;
+            }
+
+            // strip locus from marker rgd id
+            int underscorePos = markerRgdId.indexOf('_');
+            int rgdId = Integer.parseInt(markerRgdId.substring(0, underscorePos));
+
+            MapData md = new MapData();
+            md.setRgdId(rgdId);
+            md.setMapKey(mapKey);
+            md.setChromosome(chr);
+            md.setStartPos(startPos);
+            md.setStopPos(stopPos);
+            md.setStrand(strand);
+            md.setSrcPipeline(srcPipeline);
+
+            if( insertIfNew(md, mapDAO, srcPipeline) ) {
+                positionsInserted++;
+            } else {
+                positionsDuplicated++;
+            }
+        }
+        in.close();
+
+        System.out.println("positions processed: "+positionsProcessed);
+        System.out.println("positions inserted: "+positionsInserted);
+        System.out.println("positions duplicated: "+positionsDuplicated);
+        System.out.println("scaffold positions skipped from  loading: "+unmappedChromosomes);
+    }
+
+    /// return true if inserted; false otherwise
+    static boolean insertIfNew(MapData mdForInsert, MapDAO mapDao, String srcPipeline) throws Exception {
+
+        List<MapData> mdsInRgd = mapDao.getMapData(mdForInsert.getRgdId(), mdForInsert.getMapKey(), srcPipeline);
+        for( MapData md: mdsInRgd ) {
+            if( md.equalsByGenomicCoords(mdForInsert) ) {
+                return false;
+            }
+        }
+
+        mapDao.insertMapData(mdForInsert);
+        return true;
+    }
+
+    /** load positions for markers on 7.2 assembly
+     *  Apr 2021
+     *
+     *  file format: (sample few lines)
+     *       psLayout
+     *
+     *      ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+     * D7Rat177 CM026980.1 - 74647624 74647814 190
+     * D16Rat27 CM026989.1 - 57693912 57694346 430
+     * D2Rat380 CM026977.1 - 151945555 151945587 32
+     * D2Rat380 CM026989.1 + 7125655 7125707 48
+     */
+    public static void testPositions(String[] args) throws Exception {
 
         // map genebank chr id to chr symbol, f.e. 'CM026984.1' -> '11'
         Map<String,String> chrMap = new HashMap<>();
