@@ -1,3 +1,6 @@
+BinTool
+  added 'sliding-window' computation
+
 Loader4Markers7_2:
   1) generate fasta files with rat markers for assemblies rn6 and rn3_4
   2) load markers data for assembly rn7.2
