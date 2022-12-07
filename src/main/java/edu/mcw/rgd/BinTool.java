@@ -24,6 +24,7 @@ public class Main {
         String chrPar = null;
         boolean dataAsNumbers = true;
         boolean slidingWindow = false;
+        boolean reverse = false;
         Double cutoffValue = null;
 
         boolean join = false;
@@ -78,6 +79,9 @@ public class Main {
                 case "--join2":
                     join2 = true;
                     break;
+                case "--reverse":
+                    reverse = true;
+                    break;
                 case "--sliding_window":
                     slidingWindow = true;
                     break;
@@ -88,11 +92,11 @@ public class Main {
         }
 
         if( join ) {
-            joinFiles(inputFiles, outputFile, dataCol);
+            joinFiles(inputFiles, outputFile, dataCol, reverse);
             return;
         }
         if( join2 ) {
-            joinFiles2(inputFiles, outputFile, dataCol);
+            joinFiles2(inputFiles, outputFile, dataCol, reverse);
             return;
         }
         if( cutoffValue!=null ) {
@@ -370,7 +374,7 @@ public class Main {
     }
 
     static void usage() {
-        System.out.print("BinTool   -- build Oct 05, 2022\n"+
+        System.out.print("BinTool   -- build Dec 07, 2022\n"+
                 "\n"+
                 "Usage:\n"+
                 "java -jar bintool.jar \n"+
@@ -388,6 +392,7 @@ public class Main {
                 "   --data_as_numbers   or   --data_as_text\n"+
                 "   --join   (join all files specified in --input into multi column file; first 3 columns uniquely identify the row)\n"+
                 "   --join2  (join all files specified in --input into multi column file; first 2 columns uniquely identify the row)\n"+
+                "   --reverse  -- for --join and --join2 options: adds extra column with row numbers in reverse\n"+
                 "   --sliding_window   (if specified, use sliding window)\n"+
                 "");
     }
@@ -429,7 +434,7 @@ public class Main {
         System.out.println("lines written: "+linesWritten);
     }
 
-    static void joinFiles(List<String> inputFiles, String outputFile, int dataCol) throws IOException {
+    static void joinFiles(List<String> inputFiles, String outputFile, int dataCol, boolean reverse) throws IOException {
 
         if( dataCol==0 ) {
             dataCol = 3;
@@ -473,8 +478,12 @@ public class Main {
         for( String fname: inputFiles ) {
             out.write("\t"+fname);
         }
+        if( reverse ) {
+            out.write("\treverse_row_nr");
+        }
         out.write("\n");
 
+        int reverseRowNr = results.size();
         for( Map.Entry<String, String[]> entry: results.entrySet() ) {
             out.write(entry.getKey()); // write 1st 3 columns
             String[] dataCols = entry.getValue();
@@ -484,12 +493,16 @@ public class Main {
                 }
                 out.write("\t"+dataVal);
             }
+            if( reverse ) {
+                out.write("\t"+reverseRowNr);
+                reverseRowNr--;
+            }
             out.write("\n");
         }
         out.close();
     }
 
-    static void joinFiles2(List<String> inputFiles, String outputFile, int dataCol) throws IOException {
+    static void joinFiles2(List<String> inputFiles, String outputFile, int dataCol, boolean reverse) throws IOException {
 
         if( dataCol==0 ) {
             dataCol = 2;
@@ -532,8 +545,12 @@ public class Main {
         for( String fname: inputFiles ) {
             out.write("\t"+fname);
         }
+        if( reverse ) {
+            out.write("\treverse_row_nr");
+        }
         out.write("\n");
 
+        int reverseRowNr = results.size();
         for( Map.Entry<String, String[]> entry: results.entrySet() ) {
             out.write(entry.getKey()); // write 1st 3 columns
             String[] dataCols = entry.getValue();
@@ -543,16 +560,19 @@ public class Main {
                 }
                 out.write("\t"+dataVal);
             }
+            if( reverse ) {
+                out.write("\t"+reverseRowNr);
+                reverseRowNr--;
+            }
             out.write("\n");
         }
         out.close();
     }
 
     static void slidingWindowWithNumericData(BufferedReader in, BufferedWriter out, int chrCol, int posCol, int dataCol,
-                                   int posMin, int posMax, int binSize, String chrPar) throws IOException {
+                                   int posMin, int posMax, int binSize, String chrPar) throws Exception {
 
-        if( true) throw new IOException("TODO");
-        out.write("#chr\tbin_pos_start\tbin_pos_end\tnonzero_lines_in_bin\tsum\tavg\n");
+        out.write("#chr\twnd_pos_start\twnd_pos_end\tnonzero_lines_in_window\tsum\tavg\n");
 
         int colsNeeded = chrCol;
         if( posCol>colsNeeded ) {
@@ -562,7 +582,10 @@ public class Main {
             colsNeeded = dataCol;
         }
 
-        Map<Integer, List<Double>> binMap = new HashMap<>();
+        Map<Integer, Double> posMap = new HashMap<>();
+        int skippedLines = 0;
+        int processedLines = 0;
+        int duplicatePosLines = 0;
 
         int lineNr = 0;
         String line;
@@ -573,8 +596,22 @@ public class Main {
                 System.out.println("line nr "+lineNr+" has only "+cols.length+" columns! skipped");
                 continue;
             }
+
+            int pos = 0;
+            try {
+                pos = Integer.parseInt(cols[posCol-1]);
+            } catch( NumberFormatException e ) {
+                skippedLines++;
+                continue;
+            }
             String chr = cols[chrCol-1];
-            int pos = Integer.parseInt(cols[posCol-1]);
+            processedLines++;
+
+            // check if out of range
+            if( pos<posMin || pos>posMax || !chr.equals(chrPar)) {
+                continue;
+            }
+
             String dataStr = cols[dataCol-1];
             double dVal = 0.0;
             try {
@@ -590,32 +627,41 @@ public class Main {
                 continue;
             }
 
-            int bin = getBin(pos, binSize, posMin);
-
-            List<Double> binData = binMap.get(bin);
-            if( binData==null ) {
-                binData = new ArrayList<>();
-                binMap.put(bin, binData);
+            Double dPrev = posMap.put(pos, dVal);
+            if( dPrev!=null ) {
+                duplicatePosLines++;
+                // sum the values
+                posMap.put(pos, dVal+dPrev);
             }
-            binData.add(dVal);
         }
 
-        // display all bins
-        for( int pos=posMin; pos<posMax; pos+=binSize ) {
-            int bin = getBin(pos, binSize, posMin);
-            List<Double> binData = binMap.get(bin);
-            if( binData==null ) {
+        // compute sliding window data
+        //
+        for( int pos=posMin; pos<=posMax; pos++ ) {
+
+            Double dSum = 0.0;
+            int dataLinesInBin = 0;
+
+            for( int k=pos; k<pos+binSize; k++ ) {
+                Double d = posMap.get(k);
+                if( d!=null ) {
+                    dSum += d;
+                    dataLinesInBin++;
+                }
+            }
+
+            if( dSum==0.0 || dataLinesInBin==0 ) {
                 out.write(chrPar+"\t"+pos+"\t"+(pos+binSize-1)+"\t0\t\t\n");
             } else {
-                Double sum = 0.0;
-                int dataLinesInBin = binData.size();
-                for( Double d: binData ) {
-                    sum += d;
-                }
-                Double avg = sum / dataLinesInBin;
+                float sum = dSum.floatValue();
+                float avg = (float)(dSum / dataLinesInBin);
                 out.write(chrPar+"\t"+pos+"\t"+(pos+binSize-1)+"\t"+dataLinesInBin+"\t"+sum+"\t"+avg+"\n");
             }
         }
+
+        System.out.println("SKIPPED LINES (invalid position): "+skippedLines);
+        System.out.println("PROCESSED LINES: "+processedLines);
+        System.out.println("DUPLICATE POS LINES: "+duplicatePosLines);
     }
 
     static void slidingWindowWithNumericData(BufferedReader in, BufferedWriter out, int chrCol, int posCol, int dataCol, int dataCol2,
