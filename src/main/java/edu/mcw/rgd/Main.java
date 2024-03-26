@@ -2,12 +2,13 @@ package mtutaj;
 
 import java.io.*;
 import java.util.*;
+import java.util.zip.GZIPOutputStream;
 
 /**
   *
   * @author marek
   */
-public class BinTool {
+public class Main {
 
     public static void main(String[] args) throws Exception {
 
@@ -29,6 +30,8 @@ public class BinTool {
 
         boolean join = false;
         boolean join2 = false;
+        boolean join2x = false;
+        boolean expandStartStop = false;
         List<String> inputFiles = new ArrayList<>();
 
         for( int i=0; i<args.length; i++ ) {
@@ -79,6 +82,9 @@ public class BinTool {
                 case "--join2":
                     join2 = true;
                     break;
+                case "--join2x":
+                    join2x = true;
+                    break;
                 case "--reverse":
                     reverse = true;
                     break;
@@ -88,7 +94,15 @@ public class BinTool {
                 case "--cutoff":
                     cutoffValue = Double.parseDouble(args[++i]);
                     break;
+                case "--expand_start_stop":
+                    expandStartStop = true;
+                    break;
             }
+        }
+
+        if( expandStartStop ) {
+            expandStartStop(inputFile, outputFile);
+            return;
         }
 
         if( join ) {
@@ -97,6 +111,10 @@ public class BinTool {
         }
         if( join2 ) {
             joinFiles2(inputFiles, outputFile, dataCol, reverse);
+            return;
+        }
+        if( join2x ) {
+            JoinFiles.joinFiles2x(inputFiles, outputFile, dataCol, reverse);
             return;
         }
         if( cutoffValue!=null ) {
@@ -374,7 +392,7 @@ public class BinTool {
     }
 
     static void usage() {
-        System.out.print("BinTool   -- build Dec 07, 2022\n"+
+        System.out.print("BinTool   -- build Mar 26, 2024\n"+
                 "\n"+
                 "Usage:\n"+
                 "java -jar bintool.jar \n"+
@@ -392,8 +410,10 @@ public class BinTool {
                 "   --data_as_numbers   or   --data_as_text\n"+
                 "   --join   (join all files specified in --input into multi column file; first 3 columns uniquely identify the row)\n"+
                 "   --join2  (join all files specified in --input into multi column file; first 2 columns uniquely identify the row)\n"+
+                "   --join2x (as join2, but works for very large files -- slower)\n"+
                 "   --reverse  -- for --join and --join2 options: adds extra column with row numbers in reverse\n"+
                 "   --sliding_window   (if specified, use sliding window)\n"+
+                "   --expand_start_stop --input INPUT_FILE --output OUTPUT_FILE\n"+
                 "");
     }
 
@@ -569,9 +589,15 @@ public class BinTool {
         out.close();
     }
 
+
     static void slidingWindowWithNumericData(BufferedReader in, BufferedWriter out, int chrCol, int posCol, int dataCol,
                                    int posMin, int posMax, int binSize, String chrPar) throws Exception {
 
+        out.write("#SLIDING_WINDOW\n");
+        out.write("#BIN_SIZE="+binSize+"\n");
+        out.write("#POS_MIN="+posMin+"\n");
+        out.write("#POS_MAX="+posMax+"\n");
+        out.write("#CHR="+chrPar+"\n");
         out.write("#chr\twnd_pos_start\twnd_pos_end\tnonzero_lines_in_window\tsum\tavg\n");
 
         int colsNeeded = chrCol;
@@ -805,7 +831,7 @@ public class BinTool {
             int pos2 = 0;
             try {
                 if( posCol2>0 ) {
-                    pos2 = Integer.parseInt(cols[posCol - 1]);
+                    pos2 = Integer.parseInt(cols[posCol2 - 1]);
                 }
             } catch( NumberFormatException e ) {
                 skippedLines++;
@@ -862,4 +888,85 @@ public class BinTool {
         System.out.println("PROCESSED LINES: "+processedLines);
     }
 
+
+    static void expandStartStop( String inputFile, String outputFile ) throws IOException {
+
+        BufferedReader in = new BufferedReader(new FileReader(inputFile));
+        BufferedWriter out;
+        if( outputFile.endsWith(".gz") ) {
+            out = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputFile))));
+        } else {
+            out = new BufferedWriter(new FileWriter(outputFile));
+        }
+
+
+        //"","seqnames","start","end","width","strand","RMTAL3","RMTAL5","RMTAL9","RPT16","RPT24","RPT25","RPT26"
+        //"1","chr1",57496,57896,401,"*",6.43869987425506,7.7478433377694,9.18820781496976,7.11599641983037,4.16389494468535,10.2020874330595,3.83717139524125
+
+        int chrCol = 1;
+        int startCol = 2;
+        int endCol = 3;
+        int dataCol = 6;
+
+        String header = in.readLine();
+
+        String[] headerCols = header.split("[,]", -1);
+        int dataColCount = headerCols.length - dataCol;
+        String zeroData = "0";
+        for( int i=1; i<dataColCount; i++ ) {
+            zeroData += ",0";
+        }
+        out.write("chr,pos");
+        for( int i=dataCol; i<dataCol+dataColCount; i++ ) {
+            out.write(","+headerCols[i]);
+        }
+        out.write("\n");
+
+
+        int prevEndPos = 0;
+        String prevChr = "";
+
+        String line;
+        while( (line=in.readLine())!=null ) {
+
+            String[] cols = line.split("[,]", -1);
+            if( cols.length <= dataCol ) {
+                continue;
+            }
+
+            String chr = cols[chrCol];
+            int start = Integer.parseInt(cols[startCol]);
+            int end = Integer.parseInt(cols[endCol]);
+
+            // flush gap lines -- for positions between previous line and this line
+            if( chr.equals(prevChr) ) {
+                for( int pos = prevEndPos+1; pos < start; pos++ ) {
+                    String gapLine = chr+","+pos+","+zeroData+"\n";
+                    out.write(gapLine);
+                }
+            }
+
+            // flush data for the current line
+            String thisData = cols[dataCol];
+            for( int j=dataCol+1; j<cols.length; j++ ) {
+                thisData += ","+cols[j];
+            }
+            for( int pos = start; pos <= end; pos++ ) {
+                String thisLine = chr+","+pos+","+thisData+"\n";
+                out.write(thisLine);
+            }
+
+            // end processing for this line
+            prevChr = chr;
+            prevEndPos = end;
+
+            System.out.println(cols[0]+"   "+chr+" "+start+" "+end);
+
+        }
+
+        in.close();
+        out.close();
+
+        System.out.println("======= OK =========");
+    }
 }
