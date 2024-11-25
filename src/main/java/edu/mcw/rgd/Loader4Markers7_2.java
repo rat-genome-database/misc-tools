@@ -12,6 +12,7 @@ import edu.mcw.rgd.process.Utils;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.util.*;
 
 /** load positions for markers on 7.2 assembly
@@ -30,9 +31,10 @@ public class Loader4Markers7_2 {
 
     public static void main(String[] args) throws Exception {
 
-        //generateFastaForMarkers();
+        int version = 2;
+        generateFastaForMarkers(version);
 
-        loadPositions(args);
+        //loadPositions(args);
     }
 
     /** load positions for markers on 7.2 assembly
@@ -191,7 +193,7 @@ public class Loader4Markers7_2 {
         System.out.println("positions inserted: "+positionsInserted);
     }
 
-    static void generateFastaForMarkers() throws Exception {
+    static void generateFastaForMarkers(int version) throws Exception {
 
         SSLPDAO sslpdao = new SSLPDAO();
 
@@ -205,8 +207,12 @@ public class Loader4Markers7_2 {
             }
         });
 
-        generateFastaForMarkers(360, "rn6", sslps);
-        generateFastaForMarkers(60, "rn3_4", sslps);
+        if( version==2 ) {
+            generateFastaForMarkers2(sslps);
+        } else {
+            generateFastaForMarkers(360, "rn6", sslps);
+            generateFastaForMarkers(60, "rn3_4", sslps);
+        }
 
         System.out.println("DONE!");
         System.exit(0);
@@ -238,15 +244,9 @@ public class Loader4Markers7_2 {
                 BufferedWriter out = seq.length() < 20 ? out2 : out1;
 
                 // write fasta
-                out.write(">"+md.getRgdId()+"_"+i+" chr"+md.getChromosome()+":"+md.getStartPos()+".."+md.getStopPos()+"\n");
+                String header = ">"+md.getRgdId()+"_"+i+" chr"+md.getChromosome()+":"+md.getStartPos()+".."+md.getStopPos();
 
-                while( seq.length()>80 ) {
-                    out.write(seq.substring(0, 80)+"\n");
-                    seq = seq.substring(80);
-                }
-                if( seq.length()>0 ) {
-                    out.write(seq+"\n");
-                }
+                writeFasta( header, seq, out );
 
                 i++;
             }
@@ -254,6 +254,87 @@ public class Loader4Markers7_2 {
 
         out1.close();
         out2.close();
+    }
+
+    static void generateFastaForMarkers2(List<SSLP> markers) throws Exception {
+
+        String fname1 = "rat_sequenced_markers.fa";
+        String fname2 = "rat_invalid_markers.fa"; // sequenced markers where template sequence is not valid fasta characters
+        String fname3 = "rat_markers_primers.fa";
+        BufferedWriter out1 = Utils.openWriter(fname1);
+        BufferedWriter out2 = Utils.openWriter(fname2);
+        BufferedWriter out3 = Utils.openWriter(fname3);
+
+        int cnt1 = 0;
+        int cnt2 = 0;
+        int cnt3 = 0;
+
+        for( SSLP sslp: markers ) {
+
+            // export sequence_template if available
+            if( sslp.getTemplateSeq()!=null ) {
+
+                String header = ">"+sslp.getRgdId()+"_"+sslp.getName()+"_"+sslp.getTemplateSeq().length();
+
+                boolean isTemplateSeqValidFasta = true;
+                for( int i=0; i<sslp.getTemplateSeq().length(); i++ ) {
+
+                    char c = sslp.getTemplateSeq().charAt(i);
+                    boolean isValidFasta = c=='A' || c=='C' || c=='G' || c=='T' || c=='N'
+                                        || c=='a' || c=='c' || c=='g' || c=='t' || c=='n';
+                    if( !isValidFasta ) {
+                        isTemplateSeqValidFasta = false;
+                        break;
+                    }
+                }
+
+                if( isTemplateSeqValidFasta ) {
+
+                    writeFasta( header, sslp.getTemplateSeq(), out1 );
+                    cnt1 ++;
+
+                } else {
+
+                    writeFasta( header, sslp.getTemplateSeq(), out2 );
+                    cnt2 ++;
+                }
+            }
+
+            // export primers
+            if( Utils.defaultString(sslp.getForwardSeq()).length() > 0
+             && Utils.defaultString(sslp.getReverseSeq()).length() > 0 ) {
+
+                int expectedSize = sslp.getExpectedSize() == null ? 0 : sslp.getExpectedSize();
+                String header1 = ">" + sslp.getRgdId() + "_" + sslp.getName() + "_" + expectedSize + "_1";
+                String header2 = ">" + sslp.getRgdId() + "_" + sslp.getName() + "_" + expectedSize + "_2";
+                writeFasta(header1, sslp.getForwardSeq(), out3);
+                writeFasta(header2, sslp.getReverseSeq(), out3);
+
+                cnt3 ++;
+            }
+        }
+
+        out1.close();
+        out2.close();
+
+        System.out.println("active rat markers processed: "+markers.size());
+        System.out.println("written "+cnt1+" valid markers to file "+fname1);
+        System.out.println("written "+cnt2+" invalid markers to file "+fname2);
+        System.out.println("written "+cnt3+" primer pairs to file "+fname3);
+    }
+
+    static void writeFasta( String header, String seq, BufferedWriter out ) throws IOException {
+
+        // write fasta
+        out.write(header+"\n");
+
+        while( seq.length()>80 ) {
+            out.write(seq.substring(0, 80)+"\n");
+            seq = seq.substring(80);
+        }
+        if( seq.length()>0 ) {
+            out.write(seq+"\n");
+        }
     }
 
     static String getFastaSeq(int mapKey, String chr, int startPos, int stopPos) throws Exception {

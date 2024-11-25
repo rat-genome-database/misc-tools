@@ -1,4 +1,4 @@
-package mtutaj;
+package edu.mcw.rgd;
 
 import java.io.*;
 import java.util.*;
@@ -114,7 +114,7 @@ public class Main {
             return;
         }
         if( join2x ) {
-            JoinFiles.joinFiles2x(inputFiles, outputFile, dataCol, reverse);
+            //JoinFiles.joinFiles2x(inputFiles, outputFile, dataCol, reverse);
             return;
         }
         if( cutoffValue!=null ) {

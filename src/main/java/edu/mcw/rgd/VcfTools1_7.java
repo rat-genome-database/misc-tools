@@ -1,14 +1,9 @@
 package edu.mcw.rgd;
 
-import java.io.*;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
+import java.io.IOException;
 
-public class VcfTools {
-
+public class VcfTools1_7 {
+/*
     public static void main(String[] args) throws IOException {
 
         if( args.length<2 ) {
@@ -440,4 +435,6 @@ public class VcfTools {
             writer = new BufferedWriter(new FileWriter(fileName));
         return writer;
     }
+
+ */
 }
