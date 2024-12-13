@@ -1,6 +1,6 @@
 <!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN" "http://www.springframework.org/dtd/spring-beans.dtd">
 <beans>
 	<bean id="manager" class="edu.mcw.rgd.HistoricLogs">
-        <property name="version" value="MiscTools  -- build Nov 25, 2024" />
+        <property name="version" value="MiscTools  -- build Dec 13, 2024" />
 	</bean>
 </beans>

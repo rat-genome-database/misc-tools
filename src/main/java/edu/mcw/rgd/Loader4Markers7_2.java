@@ -316,6 +316,7 @@ public class Loader4Markers7_2 {
 
         out1.close();
         out2.close();
+        out3.close();
 
         System.out.println("active rat markers processed: "+markers.size());
         System.out.println("written "+cnt1+" valid markers to file "+fname1);
